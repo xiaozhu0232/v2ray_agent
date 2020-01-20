@@ -10,7 +10,7 @@
   "inbounds": [
     {
       "listen": "127.0.0.1",
-      "port": 6789,
+      "port": 1234,
       "protocol": "dokodemo-door",
       "settings": {
         "address": "127.0.0.1"
@@ -19,17 +19,10 @@
     },
     {
       "listen": "127.0.0.1",
-      "port": 9443,
+      "port": 8080,
       "protocol": "vmess",
       "settings": {
-        "clients": [
-          {
-            "alterId": 8,
-            "email": "df2d69f3-ce4c-401b-a059-61e4eaa8a763",
-            "id": "df2d69f3-ce4c-401b-a059-61e4eaa8a763",
-            "level": 1
-          }
-        ],
+        "clients": [],
         "default": {
           "alterId": 8,
           "level": 1
@@ -68,7 +61,7 @@
         "statsUserUplink": true,
         "uplinkOnly": 0
       },
-      "5": {
+      "2": {
         "bufferSize": 2048,
         "downlinkOnly": 5,
         "statsUserDownlink": true,

@@ -6,6 +6,7 @@ import settings
 from v2ray_api.client import Client
 from v2ray_api.errors import EmailExistsError, EmailNotFoundError
 from apscheduler.schedulers.blocking import BlockingScheduler
+import logging
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 V2RAY_CONFIG = os.path.join(BASE_DIR, 'v2ray_config', 'config.json')
@@ -16,6 +17,9 @@ REQUEST_HEADERS = {'user-agent': 'v2ray-agent',
 
 LAST_TRAFFIC_RECORD = None
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+log = logging.getLogger(__name__)
+
 
 def get_enable_users():
     users = []
@@ -25,8 +29,10 @@ def get_enable_users():
             user_dict = r.json()
             users = user_dict['users']
         except Exception as e:
+            log.error(e)
             raise e
     else:
+        log.error('Can not get users info from v2rayui API.')
         raise ValueError('Can not get users info from v2rayui API.')
     return users
 
@@ -41,7 +47,8 @@ def get_v2ray_users(inbound_tag):
                 for user in inbound['settings']['clients']:
                     users.append(user['id'])
                 break
-    except Exception:
+    except Exception as e:
+        log.error(e)
         return []
     return users
 
@@ -54,7 +61,7 @@ def loop_check_users():
     try:
         enable_users = get_enable_users()
     except Exception as e:
-        print(e)
+        log.error(e)
         return None
     v2ray_users = get_v2ray_users(settings.V2RAY_INBOUND_TAG)
     with open(V2RAY_CONFIG, 'r') as f:
@@ -65,15 +72,16 @@ def loop_check_users():
             v2ray_users.remove(user['user_id'])
         else:
             try:
+                log.info('Add new user: %s' % user['user_id'])
                 v2ray_client.add_user(inbound_tag=settings.V2RAY_INBOUND_TAG,
                                       user_id=user['user_id'],
                                       email=user['user_id'],
                                       level=user['level'],
                                       alter_id=user['alter_id'])
             except EmailExistsError:
-                print('User exists, skip adding...')
+                log.error('User %s exists, skip adding...' % user['user_id'])
             except Exception as e:
-                print(e)
+                log.error(e)
                 continue
             for inbound in v2ray_config_dict['inbounds']:
                 if inbound['tag'] == settings.V2RAY_INBOUND_TAG:
@@ -84,15 +92,17 @@ def loop_check_users():
                         'alterId': user['alter_id']
                     })
                     config_changed = True
+                    log.info('Add new user %s to config.json' % user['user_id'])
                     break
     if len(v2ray_users):
         for user_id in v2ray_users:
             try:
+                log.info('Delete user: %s' % user['user_id'])
                 v2ray_client.remove_user(inbound_tag=settings.V2RAY_INBOUND_TAG, email=user_id)
             except EmailNotFoundError:
-                print('User not exists, skip deleting...')
+                log.error('User %s not exists, skip deleting...' % user['user_id'])
             except Exception as e:
-                print(e)
+                log.error(e)
                 continue
             for inbound in v2ray_config_dict['inbounds']:
                 if inbound['tag'] == settings.V2RAY_INBOUND_TAG:
@@ -100,11 +110,13 @@ def loop_check_users():
                         if client_item['id'] == user_id:
                             inbound['settings']['clients'].pop(i)
                             config_changed = True
+                            log.info('Delete user %s from config.json' % user['user_id'])
                             break
                     break
     if config_changed:
         with open(V2RAY_CONFIG, 'w') as f:
             f.write(json.dumps(v2ray_config_dict, ensure_ascii=False, sort_keys=True, indent=2))
+            log.info('The changes were written to file config.json successfully.')
 
 
 def loop_update_traffic():
@@ -114,7 +126,7 @@ def loop_update_traffic():
     else:
         return None
     traffic = v2ray_client.get_all_traffic(reset=True)
-    result = {'users': traffic['users'], 'node': {}}
+    result = {'users': traffic['users'], 'node': {'uplink': 0, 'downlink': 0}}
     for inbound in traffic['inbound']:
         if inbound == settings.V2RAY_INBOUND_TAG:
             result['node'] = {
@@ -133,10 +145,12 @@ def loop_update_traffic():
     if r.status_code == 200 or r.status_code == 202:
         LAST_TRAFFIC_RECORD = None
     else:
+        log.warning('Update traffic failed...')
         LAST_TRAFFIC_RECORD = result
 
 
 scheduler = BlockingScheduler()
 scheduler.add_job(loop_check_users, 'interval', seconds=int(settings.CHECK_USER_INTERVAL))
 scheduler.add_job(loop_update_traffic, 'interval', seconds=int(settings.UPDATE_TRAFFIC_INTERVAL))
+logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
 scheduler.start()

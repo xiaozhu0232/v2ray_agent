@@ -1,2 +1,4 @@
 apscheduler
 requests
+grpcio
+grpcio-tools

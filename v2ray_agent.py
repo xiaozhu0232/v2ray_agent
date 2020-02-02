@@ -137,10 +137,11 @@ def loop_update_traffic():
         result['node']['uplink'] += LAST_TRAFFIC_RECORD['node']['uplink']
         result['node']['downlink'] += LAST_TRAFFIC_RECORD['node']['downlink']
         for user_id in result['users']:
-            result['users'][user_id] = {
-                'uplink': result['users'][user_id].get('uplink', 0) + LAST_TRAFFIC_RECORD['users'][user_id].get('uplink', 0),
-                'downlink': result['users'][user_id].get('downlink', 0) + LAST_TRAFFIC_RECORD['users'][user_id].get('downlink', 0)
-            }
+            if LAST_TRAFFIC_RECORD['users'].get('user_id'):
+                result['users'][user_id] = {
+                    'uplink': result['users'][user_id].get('uplink', 0) + LAST_TRAFFIC_RECORD['users'][user_id].get('uplink', 0),
+                    'downlink': result['users'][user_id].get('downlink', 0) + LAST_TRAFFIC_RECORD['users'][user_id].get('downlink', 0)
+                }
     r = requests.post(urljoin(settings.V2RAYUI_URL, 'trafficapi'), json=result, headers=REQUEST_HEADERS)
     if r.status_code == 200 or r.status_code == 202:
         LAST_TRAFFIC_RECORD = None
